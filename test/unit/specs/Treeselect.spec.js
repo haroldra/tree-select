@@ -5,6 +5,9 @@ import TreeselectOption from '@riophae/vue-treeselect/components/Option'
 import SearchInput from '@riophae/vue-treeselect/components/SearchInput'
 import { UNCHECKED, INDETERMINATE, CHECKED } from '@riophae/vue-treeselect/constants'
 
+// disable the tip that suggests using devtools extension
+Vue.config.devtools = false
+
 const BUTTON_LEFT = { button: 0 }
 const KEY_BACKSPACE = { which: 8, keyCode: 8 }
 const KEY_DELETE = { which: 46, keyCode: 46 }
@@ -91,8 +94,9 @@ describe('Basic', () => {
         isLoaded: jasmine.any(Boolean),
         isPending: jasmine.any(Boolean),
         hasMatchedChild: jasmine.any(Boolean),
+        hasDisabledDescendants: jasmine.any(Boolean),
         expandsOnSearch: jasmine.any(Boolean),
-        parentNode: jasmine.any(Object),
+        parentNode: null,
         ancestors: jasmine.any(Array),
         index: jasmine.any(Array),
         children: jasmine.any(Array),
@@ -136,6 +140,136 @@ describe('Basic', () => {
 
       expect(vm.nodeMap.a.id).toBe('a')
       expect(vm.nodeMap.a.label).toBe('a')
+    })
+
+    describe('isDisabled', () => {
+      it('flat=false', () => {
+        const wrapper = mount(Treeselect, {
+          propsData: {
+            flat: false,
+            options: [ {
+              id: 'a',
+              label: 'a',
+              isDisabled: true,
+              children: [ {
+                id: 'aa',
+                label: 'aa',
+              } ],
+            }, {
+              id: 'b',
+              label: 'b',
+              children: [ {
+                id: 'ba',
+                label: 'ba',
+                isDisabled: true,
+              }, {
+                id: 'bb',
+                label: 'bb',
+              } ],
+            }, {
+              id: 'c',
+              label: 'c',
+              children: [ {
+                id: 'ca',
+                label: 'ca',
+                isDisabled: true,
+                children: [ {
+                  id: 'caa',
+                  label: 'caa',
+                } ],
+              } ],
+            } ],
+          },
+        })
+        const { vm } = wrapper
+        const { a, aa, b, ba, bb, c, ca, caa } = vm.nodeMap
+
+        expect(a.isDisabled).toBe(true)
+        expect(aa.isDisabled).toBe(true)
+        expect(b.isDisabled).toBe(false)
+        expect(ba.isDisabled).toBe(true)
+        expect(bb.isDisabled).toBe(false)
+        expect(c.isDisabled).toBe(false)
+        expect(ca.isDisabled).toBe(true)
+        expect(caa.isDisabled).toBe(true)
+      })
+
+      it('flat=true', () => {
+        const wrapper = mount(Treeselect, {
+          propsData: {
+            flat: true,
+            options: [ {
+              id: 'a',
+              label: 'a',
+              isDisabled: true,
+              children: [ {
+                id: 'aa',
+                label: 'aa',
+              } ],
+            }, {
+              id: 'b',
+              label: 'b',
+              children: [ {
+                id: 'ba',
+                label: 'ba',
+                isDisabled: true,
+              }, {
+                id: 'bb',
+                label: 'bb',
+              } ],
+            }, {
+              id: 'c',
+              label: 'c',
+              children: [ {
+                id: 'ca',
+                label: 'ca',
+                isDisabled: true,
+                children: [ {
+                  id: 'caa',
+                  label: 'caa',
+                } ],
+              } ],
+            } ],
+          },
+        })
+        const { vm } = wrapper
+        const { a, aa, b, ba, bb, c, ca, caa } = vm.nodeMap
+
+        expect(a.isDisabled).toBe(true)
+        expect(aa.isDisabled).toBe(false)
+        expect(b.isDisabled).toBe(false)
+        expect(ba.isDisabled).toBe(true)
+        expect(bb.isDisabled).toBe(false)
+        expect(c.isDisabled).toBe(false)
+        expect(ca.isDisabled).toBe(true)
+        expect(caa.isDisabled).toBe(false)
+      })
+    })
+
+    it('hasDisabledDescendants', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          flat: true,
+          options: [ {
+            id: 'a',
+            label: 'a',
+            children: [ {
+              id: 'aa',
+              label: 'aa',
+              isDisabled: true,
+              children: [ {
+                id: 'aaa',
+                label: 'aaa',
+              } ],
+            } ],
+          } ],
+        },
+      })
+      const { vm } = wrapper
+      const { a, aa } = vm.nodeMap
+
+      expect(a.hasDisabledDescendants).toBe(true)
+      expect(aa.hasDisabledDescendants).toBe(false)
     })
 
     it('isLeaf & isBranch & isLoaded', () => {
@@ -192,6 +326,28 @@ describe('Basic', () => {
         children: [],
         isLoaded: false,
       }))
+    })
+
+    it('isDefaultExpanded', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          options: [ {
+            id: 'a',
+            label: 'a',
+            isDefaultExpanded: true,
+            children: [],
+          }, {
+            id: 'b',
+            label: 'b',
+            isDefaultExpanded: false,
+            children: [],
+          } ],
+        },
+      })
+      const { a, b } = wrapper.vm.nodeMap
+
+      expect(a).toEqual(jasmine.objectContaining({ isExpanded: true }))
+      expect(b).toEqual(jasmine.objectContaining({ isExpanded: false }))
     })
 
     it('isRootNode', () => {
@@ -492,15 +648,6 @@ describe('Basic', () => {
     // so here we write vanila vue code
     const vm = new Vue({
       components: { Treeselect },
-      template: `
-        <div>
-          <treeselect
-            v-model="value"
-            :options="options"
-            :multiple="true"
-          />
-        </div>
-      `,
       data: {
         value: [],
         options: [ {
@@ -511,6 +658,15 @@ describe('Basic', () => {
           label: 'b',
         } ],
       },
+      template: `
+        <div>
+          <treeselect
+            v-model="value"
+            :options="options"
+            :multiple="true"
+          />
+        </div>
+      `,
     }).$mount()
     const comp = vm.$children[0]
 
@@ -524,7 +680,7 @@ describe('Basic', () => {
   })
 })
 
-describe('Single Select', () => {
+describe('Single-select', () => {
   it('basic', () => {
     const wrapper = mount(Treeselect, {
       propsData: {
@@ -1141,6 +1297,391 @@ describe('Multi-select', () => {
   })
 })
 
+describe('Disable Item Selection', () => {
+  describe('Single-select', () => {
+    it('basic', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          multiple: false,
+          options: [ {
+            id: 'a',
+            label: 'a',
+            isDisabled: true,
+          }, {
+            id: 'b',
+            label: 'b',
+          } ],
+          value: 'a',
+        },
+      })
+      const { vm } = wrapper
+
+      vm.select(vm.nodeMap.b)
+      expect(vm.internalValue).toEqual([ 'b' ])
+      vm.select(vm.nodeMap.a)
+      expect(vm.internalValue).toEqual([ 'b' ])
+    })
+
+    it('nested', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          multiple: false,
+          options: [ {
+            id: 'a',
+            label: 'a',
+            isDisabled: true,
+            children: [ {
+              id: 'aa',
+              label: 'aa',
+            } ],
+          }, {
+            id: 'b',
+            label: 'b',
+            children: [ {
+              id: 'ba',
+              label: 'ba',
+              isDisabled: true,
+            }, {
+              id: 'bb',
+              label: 'bb',
+            } ],
+          }, {
+            id: 'c',
+            label: 'c',
+            children: [ {
+              id: 'ca',
+              label: 'ca',
+              isDisabled: true,
+            }, {
+              id: 'cb',
+              label: 'cb',
+              children: [ {
+                id: 'cba',
+                label: 'cba',
+                isDisabled: true,
+              }, {
+                id: 'cbb',
+                label: 'cbb',
+              } ],
+            } ],
+          } ],
+        },
+      })
+      const { vm } = wrapper
+
+      vm.select(vm.nodeMap.a)
+      expect(vm.internalValue).toEqual([])
+      vm.select(vm.nodeMap.aa)
+      expect(vm.internalValue).toEqual([])
+      vm.select(vm.nodeMap.b)
+      expect(vm.internalValue).toEqual([ 'b' ])
+      vm.select(vm.nodeMap.ba)
+      expect(vm.internalValue).toEqual([ 'b' ])
+      vm.select(vm.nodeMap.bb)
+      expect(vm.internalValue).toEqual([ 'bb' ])
+      vm.select(vm.nodeMap.c)
+      expect(vm.internalValue).toEqual([ 'c' ])
+      vm.select(vm.nodeMap.ca)
+      expect(vm.internalValue).toEqual([ 'c' ])
+      vm.select(vm.nodeMap.cb)
+      expect(vm.internalValue).toEqual([ 'cb' ])
+      vm.select(vm.nodeMap.cba)
+      expect(vm.internalValue).toEqual([ 'cb' ])
+      vm.select(vm.nodeMap.cbb)
+      expect(vm.internalValue).toEqual([ 'cbb' ])
+    })
+  })
+
+  describe('Multi-select', () => {
+    describe('flat=false', () => {
+      it('basic', () => {
+        const wrapper = mount(Treeselect, {
+          propsData: {
+            options: [ {
+              id: 'a',
+              label: 'a',
+              isDisabled: true,
+            }, {
+              id: 'b',
+              label: 'b',
+              isDisabled: true,
+            }, {
+              id: 'c',
+              label: 'c',
+            } ],
+            multiple: true,
+            value: [ 'a' ],
+          },
+        })
+        const { vm } = wrapper
+
+        vm.select(vm.nodeMap.a)
+        expect(vm.internalValue).toEqual([ 'a' ])
+        vm.select(vm.nodeMap.b)
+        expect(vm.internalValue).toEqual([ 'a' ])
+        vm.select(vm.nodeMap.c)
+        expect(vm.internalValue).toEqual([ 'a', 'c' ])
+      })
+
+      it('disabled parent node', () => {
+        const wrapper = mount(Treeselect, {
+          propsData: {
+            options: [ {
+              id: 'a',
+              label: 'a',
+              isDisabled: true,
+              children: [ {
+                id: 'aa',
+                label: 'aa',
+              }, {
+                id: 'ab',
+                label: 'ab',
+              } ],
+            }, {
+              id: 'b',
+              label: 'b',
+              isDisabled: true,
+              children: [ {
+                id: 'ba',
+                label: 'ba',
+              }, {
+                id: 'bb',
+                label: 'bb',
+              } ],
+            }, {
+              id: 'c',
+              label: 'c',
+              isDisabled: true,
+              children: [ {
+                id: 'ca',
+                label: 'ca',
+              }, {
+                id: 'cb',
+                label: 'cb',
+              } ],
+            } ],
+            multiple: true,
+            value: [ 'ba', 'c' ],
+          },
+        })
+        const { vm } = wrapper
+
+        vm.select(vm.nodeMap.a)
+        expect(vm.internalValue).toEqual([ 'ba', 'c' ])
+        vm.select(vm.nodeMap.b)
+        expect(vm.internalValue).toEqual([ 'ba', 'c' ])
+        vm.select(vm.nodeMap.c)
+        expect(vm.internalValue).toEqual([ 'ba', 'c' ])
+      })
+
+      it('disabled child node', () => {
+        const wrapper = mount(Treeselect, {
+          propsData: {
+            options: [ {
+              id: 'a',
+              label: 'a',
+              children: [ {
+                id: 'aa',
+                label: 'aa',
+                isDisabled: true,
+              }, {
+                id: 'ab',
+                label: 'ab',
+              } ],
+            }, {
+              id: 'b',
+              label: 'b',
+              children: [ {
+                id: 'ba',
+                label: 'ba',
+                isDisabled: true,
+              }, {
+                id: 'bb',
+                label: 'bb',
+                isDisabled: true,
+              } ],
+            }, {
+              id: 'c',
+              label: 'c',
+              children: [ {
+                id: 'ca',
+                label: 'ca',
+                isDisabled: true,
+              }, {
+                id: 'cb',
+                label: 'cb',
+                isDisabled: true,
+              } ],
+            }, {
+              id: 'd',
+              label: 'd',
+              children: [ {
+                id: 'da',
+                label: 'da',
+                isDisabled: true,
+              }, {
+                id: 'db',
+                label: 'db',
+                isDisabled: true,
+              }, {
+                id: 'dc',
+                label: 'dc',
+              } ],
+            } ],
+            multiple: true,
+            value: [ 'aa', 'b', 'da' ],
+          },
+        })
+        const { vm } = wrapper
+
+        vm.select(vm.nodeMap.a)
+        expect(vm.internalValue).toEqual([ 'aa', 'b', 'da' ])
+        vm.select(vm.nodeMap.ab)
+        expect(vm.internalValue).toEqual([ 'b', 'da', 'a' ])
+        vm.select(vm.nodeMap.a)
+        expect(vm.internalValue).toEqual([ 'b', 'da', 'aa' ])
+        vm.select(vm.nodeMap.ab)
+        expect(vm.internalValue).toEqual([ 'b', 'da', 'a' ])
+        vm.select(vm.nodeMap.b)
+        expect(vm.internalValue).toEqual([ 'b', 'da', 'a' ])
+        vm.select(vm.nodeMap.c)
+        expect(vm.internalValue).toEqual([ 'b', 'da', 'a' ])
+        vm.select(vm.nodeMap.d)
+        expect(vm.internalValue).toEqual([ 'b', 'da', 'a' ])
+        vm.select(vm.nodeMap.dc)
+        expect(vm.internalValue).toEqual([ 'b', 'da', 'a', 'dc' ])
+        vm.select(vm.nodeMap.d)
+        expect(vm.internalValue).toEqual([ 'b', 'da', 'a' ])
+      })
+
+      it('nested', () => {
+        const wrapper = mount(Treeselect, {
+          propsData: {
+            options: [ {
+              id: 'a',
+              label: 'a',
+              children: [ {
+                id: 'aa',
+                label: 'aa',
+                isDisabled: true,
+                children: [ {
+                  id: 'aaa',
+                  label: 'aaa',
+                }, {
+                  id: 'aab',
+                  label: 'aab',
+                } ],
+              }, {
+                id: 'ab',
+                label: 'ab',
+                children: [ {
+                  id: 'aba',
+                  label: 'aba',
+                  isDisabled: true,
+                }, {
+                  id: 'abb',
+                  label: 'abb',
+                } ],
+              } ],
+            } ],
+            multiple: true,
+            value: [ 'aa', 'aba' ],
+          },
+        })
+        const { vm } = wrapper
+
+        vm.select(vm.nodeMap.a)
+        expect(vm.internalValue).toEqual([ 'aa', 'aba' ])
+        vm.select(vm.nodeMap.ab)
+        expect(vm.internalValue).toEqual([ 'aa', 'aba' ])
+        vm.select(vm.nodeMap.abb)
+        expect(vm.internalValue).toEqual([ 'a' ])
+      })
+    })
+
+    describe('flat=true', () => {
+      it('basic', () => {
+        const wrapper = mount(Treeselect, {
+          propsData: {
+            flat: true,
+            multiple: true,
+            options: [ {
+              id: 'a',
+              label: 'a',
+              isDisabled: true,
+              children: [ {
+                id: 'aa',
+                label: 'aa',
+              } ],
+            }, {
+              id: 'b',
+              label: 'b',
+              children: [ {
+                id: 'ba',
+                label: 'ba',
+                isDisabled: true,
+              }, {
+                id: 'bb',
+                label: 'bb',
+              } ],
+            } ],
+          },
+        })
+        const { vm } = wrapper
+
+        vm.select(vm.nodeMap.a)
+        expect(vm.internalValue).toEqual([])
+        vm.select(vm.nodeMap.aa)
+        expect(vm.internalValue).toEqual([ 'aa' ])
+        vm.select(vm.nodeMap.aa)
+        expect(vm.internalValue).toEqual([])
+        vm.select(vm.nodeMap.b)
+        expect(vm.internalValue).toEqual([ 'b' ])
+        vm.select(vm.nodeMap.ba)
+        expect(vm.internalValue).toEqual([ 'b' ])
+        vm.select(vm.nodeMap.bb)
+        expect(vm.internalValue).toEqual([ 'b', 'bb' ])
+      })
+
+      it('nested', () => {
+        const wrapper = mount(Treeselect, {
+          propsData: {
+            flat: true,
+            multiple: true,
+            options: [ {
+              id: 'a',
+              label: 'a',
+              children: [ {
+                id: 'aa',
+                label: 'aa',
+                isDisabled: true,
+                children: [ {
+                  id: 'aaa',
+                  label: 'aaa',
+                  isDisabled: true,
+                }, {
+                  id: 'aab',
+                  label: 'aab',
+                } ],
+              } ],
+            } ],
+          },
+        })
+        const { vm } = wrapper
+
+        vm.select(vm.nodeMap.a)
+        expect(vm.internalValue).toEqual([ 'a' ])
+        vm.select(vm.nodeMap.aa)
+        expect(vm.internalValue).toEqual([ 'a' ])
+        vm.select(vm.nodeMap.aaa)
+        expect(vm.internalValue).toEqual([ 'a' ])
+        vm.select(vm.nodeMap.aab)
+        expect(vm.internalValue).toEqual([ 'a', 'aab' ])
+      })
+    })
+  })
+})
+
 describe('SearchInput', () => {
   it('should disable auto complete', () => {
     const wrapper = mount(Treeselect, {
@@ -1220,7 +1761,7 @@ describe('Menu', () => {
     expect(wrapper.vm.isOpen).toBe(true)
   })
 
-  it('should close the menu after clicking inside the value wrapper when isOpen=true and searchable=false', () => {
+  it('should close the menu after clicking inside the value wrapper when isOpen=true && searchable=false', () => {
     const wrapper = mount(Treeselect, {
       attachToDocument: true,
       propsData: {
@@ -1243,7 +1784,7 @@ describe('Menu', () => {
     expect(wrapper.vm.isOpen).toBe(false)
   })
 
-  it('should not close the menu after clicking a value remove button when multiple=true & searchable=false', () => {
+  it('should not close the menu after clicking a value remove button when multiple=true && searchable=false', () => {
     const wrapper = mount(Treeselect, {
       attachToDocument: true,
       propsData: {
@@ -1505,6 +2046,115 @@ describe('Keyboard Support', () => {
 })
 
 describe('Props', () => {
+  describe('alwaysOpen', () => {
+    it('should auto open the menu on mount', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          options: [],
+          alwaysOpen: true,
+        },
+      })
+      const { vm } = wrapper
+
+      expect(vm.isOpen).toBe(true)
+    })
+
+    it('should hide the arrow', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          options: [],
+          alwaysOpen: true,
+        },
+      })
+
+      wrapper.update() // the arrow exists on first render
+      expect(wrapper.contains('.vue-treeselect__arrow-wrapper')).toBe(false)
+    })
+
+    it('the menu should be unclosable', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          options: [],
+          alwaysOpen: true,
+        },
+      })
+      const { vm } = wrapper
+
+      vm.closeMenu()
+      expect(vm.isOpen).toBe(true)
+    })
+
+    it('when disabled=true, should not auto open the menu on mount', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          options: [],
+          alwaysOpen: true,
+          disabled: true,
+        },
+      })
+      const { vm } = wrapper
+
+      expect(vm.isOpen).toBe(false)
+    })
+
+    it('set disabled=true should close the already opened menu', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          options: [],
+          alwaysOpen: true,
+          disabled: false,
+        },
+      })
+      const { vm } = wrapper
+
+      expect(vm.isOpen).toBe(true)
+      wrapper.setProps({ disabled: true })
+      expect(vm.isOpen).toBe(false)
+    })
+
+    it('set `disabled` from true to false should open the menu', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          options: [],
+          alwaysOpen: true,
+          disabled: true,
+        },
+      })
+      const { vm } = wrapper
+
+      expect(vm.isOpen).toBe(false)
+      wrapper.setProps({ disabled: false })
+      expect(vm.isOpen).toBe(true)
+    })
+
+    it('should show the arrow when disabled', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          options: [],
+          alwaysOpen: true,
+          disabled: true,
+        },
+      })
+
+      expect(wrapper.contains('.vue-treeselect__arrow-wrapper')).toBe(true)
+    })
+
+    it('set `alwaysOpen` from true to false should close the menu and show the arrow', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          options: [],
+          alwaysOpen: true,
+        },
+      })
+      const { vm } = wrapper
+
+      expect(vm.isOpen).toBe(true)
+      wrapper.setProps({ alwaysOpen: false })
+      expect(vm.isOpen).toBe(false)
+      expect(wrapper.contains('.vue-treeselect__arrow-wrapper')).toBe(true)
+    })
+  })
+
   describe('autofocus', () => {
     it('should focus the search input on mount', () => {
       const wrapper = mount(Treeselect, {
@@ -1521,7 +2171,7 @@ describe('Props', () => {
   })
 
   describe('branchNodesFirst', () => {
-    it('should place branch nodes ahead of leaf nodes when branchNodesFirst = true', () => {
+    it('should place branch nodes ahead of leaf nodes when branchNodesFirst=true', () => {
       const wrapper = mount(Treeselect, {
         propsData: {
           branchNodesFirst: true,
@@ -1757,325 +2407,6 @@ describe('Props', () => {
     })
   })
 
-  describe('disableBranchNodes', () => {
-    it('when multiple=false & disableBranchNodes=false', () => {
-      const wrapper = mount(Treeselect, {
-        attachToDocument: true,
-        propsData: {
-          disableBranchNodes: false,
-          closeOnSelect: true,
-          multiple: false,
-          options: [ {
-            id: 'a',
-            label: 'a',
-            children: [ {
-              id: 'aa',
-              label: 'aa',
-            } ],
-          } ],
-        },
-        data: {
-          isOpen: true,
-        },
-      })
-      const { vm } = wrapper
-      const optionA = wrapper.first(TreeselectOption)
-      const labelWrapperOfOptionA = optionA.first('.vue-treeselect__label-wrapper')
-
-      expect(optionA.vm.node.id).toBe('a')
-      expect(vm.nodeMap.a.isExpanded).toBe(false)
-      expect(vm.isSelected(vm.nodeMap.a)).toBe(false)
-
-      customTrigger(labelWrapperOfOptionA, 'mousedown', BUTTON_LEFT)
-      expect(vm.isOpen).toBe(false)
-      expect(vm.nodeMap.a.isExpanded).toBe(false)
-      expect(vm.isSelected(vm.nodeMap.a)).toBe(true)
-    })
-
-    it('when multiple=false & disableBranchNodes=true', () => {
-      const wrapper = mount(Treeselect, {
-        attachToDocument: true,
-        propsData: {
-          disableBranchNodes: true,
-          closeOnSelect: true,
-          multiple: false,
-          options: [ {
-            id: 'a',
-            label: 'a',
-            children: [ {
-              id: 'aa',
-              label: 'aa',
-            } ],
-          } ],
-        },
-        data: {
-          isOpen: true,
-        },
-      })
-      const { vm } = wrapper
-      const optionA = wrapper.first(TreeselectOption)
-      const labelWrapperOfOptionA = optionA.first('.vue-treeselect__label-wrapper')
-
-      expect(optionA.vm.node.id).toBe('a')
-      expect(vm.nodeMap.a.isExpanded).toBe(false)
-      expect(vm.isSelected(vm.nodeMap.a)).toBe(false)
-
-      customTrigger(labelWrapperOfOptionA, 'mousedown', BUTTON_LEFT)
-      expect(vm.isOpen).toBe(true)
-      expect(vm.nodeMap.a.isExpanded).toBe(true)
-      expect(vm.isSelected(vm.nodeMap.a)).toBe(false)
-
-      customTrigger(labelWrapperOfOptionA, 'mousedown', BUTTON_LEFT)
-      expect(vm.isOpen).toBe(true)
-      expect(vm.nodeMap.a.isExpanded).toBe(false)
-      expect(vm.isSelected(vm.nodeMap.a)).toBe(false)
-    })
-
-    it('when multiple=true & disableBranchNodes=false', () => {
-      const wrapper = mount(Treeselect, {
-        propsData: {
-          disableBranchNodes: false,
-          multiple: true,
-          options: [ {
-            id: 'a',
-            label: 'a',
-            children: [ {
-              id: 'aa',
-              label: 'aa',
-            } ],
-          } ],
-        },
-        data: {
-          isOpen: true,
-        },
-      })
-      const optionA = wrapper.first(TreeselectOption)
-      const labelWrapperOfOptionA = optionA.first('.vue-treeselect__label-wrapper')
-
-      expect(labelWrapperOfOptionA.contains('.vue-treeselect__checkbox')).toBe(true)
-    })
-
-    it('when multiple=true & disableBranchNodes=true', () => {
-      const wrapper = mount(Treeselect, {
-        propsData: {
-          disableBranchNodes: true,
-          multiple: true,
-          options: [ {
-            id: 'a',
-            label: 'a',
-            children: [ {
-              id: 'aa',
-              label: 'aa',
-            } ],
-          } ],
-        },
-        data: {
-          isOpen: true,
-        },
-      })
-      const optionA = wrapper.first(TreeselectOption)
-      const labelWrapperOfOptionA = optionA.first('.vue-treeselect__label-wrapper')
-
-      expect(labelWrapperOfOptionA.contains('.vue-treeselect__checkbox')).toBe(false)
-    })
-  })
-
-  describe('openOnClick', () => {
-    it('when openOnClick=false', () => {
-      const wrapper = mount(Treeselect, {
-        attachToDocument: true,
-        propsData: {
-          options: [],
-          openOnClick: false,
-        },
-      })
-      const valueWrapper = wrapper.first('.vue-treeselect__value-wrapper')
-
-      expect(wrapper.data()).toEqual(jasmine.objectContaining({
-        isFocused: false,
-        isOpen: false,
-      }))
-
-      customTrigger(valueWrapper, 'mousedown', BUTTON_LEFT)
-      expect(wrapper.data()).toEqual(jasmine.objectContaining({
-        isFocused: true,
-        isOpen: false,
-      }))
-
-      customTrigger(valueWrapper, 'mousedown', BUTTON_LEFT)
-      expect(wrapper.data()).toEqual(jasmine.objectContaining({
-        isFocused: true,
-        isOpen: true,
-      }))
-    })
-
-    it('when openOnClick=true', () => {
-      const wrapper = mount(Treeselect, {
-        attachToDocument: true,
-        propsData: {
-          options: [],
-          openOnClick: true,
-        },
-      })
-      const valueWrapper = wrapper.first('.vue-treeselect__value-wrapper')
-
-      expect(wrapper.data()).toEqual(jasmine.objectContaining({
-        isFocused: false,
-        isOpen: false,
-      }))
-
-      customTrigger(valueWrapper, 'mousedown', BUTTON_LEFT)
-      expect(wrapper.data()).toEqual(jasmine.objectContaining({
-        isFocused: true,
-        isOpen: true,
-      }))
-    })
-  })
-
-  describe('openOnFocus', () => {
-    it('when openOnFocus=false', () => {
-      const wrapper = mount(Treeselect, {
-        attachToDocument: true,
-        propsData: {
-          options: [],
-          openOnFocus: false,
-        },
-      })
-      const valueWrapper = wrapper.first('.vue-treeselect__value-wrapper')
-
-      expect(wrapper.data()).toEqual(jasmine.objectContaining({
-        isFocused: false,
-        isOpen: false,
-      }))
-
-      wrapper.vm.focusInput()
-      expect(wrapper.data()).toEqual(jasmine.objectContaining({
-        isFocused: true,
-        isOpen: false,
-      }))
-
-      customTrigger(valueWrapper, 'mousedown', BUTTON_LEFT)
-      expect(wrapper.data()).toEqual(jasmine.objectContaining({
-        isFocused: true,
-        isOpen: true,
-      }))
-    })
-
-    it('when openOnFocus=true', () => {
-      const wrapper = mount(Treeselect, {
-        attachToDocument: true,
-        propsData: {
-          options: [],
-          openOnFocus: true,
-        },
-      })
-
-      expect(wrapper.data()).toEqual(jasmine.objectContaining({
-        isFocused: false,
-        isOpen: false,
-      }))
-
-      wrapper.vm.focusInput()
-      expect(wrapper.data()).toEqual(jasmine.objectContaining({
-        isFocused: true,
-        isOpen: true,
-      }))
-    })
-
-    describe('combined with autofocus', () => {
-      it('when openOnFocus=false', () => {
-        const wrapper = mount(Treeselect, {
-          attachToDocument: true,
-          propsData: {
-            options: [],
-            autofocus: true,
-            openOnFocus: false,
-          },
-        })
-
-        expect(wrapper.data()).toEqual(jasmine.objectContaining({
-          isFocused: true,
-          isOpen: false,
-        }))
-      })
-
-      it('when openOnFocus=true', () => {
-        const wrapper = mount(Treeselect, {
-          attachToDocument: true,
-          propsData: {
-            options: [],
-            autofocus: true,
-            openOnFocus: true,
-          },
-        })
-
-        expect(wrapper.data()).toEqual(jasmine.objectContaining({
-          isFocused: true,
-          isOpen: true,
-        }))
-      })
-    })
-  })
-
-  describe('options', () => {
-    it('should warn about being absent', () => {
-      spyOn(console, 'error')
-
-      mount(Treeselect, {
-        propsData: {
-          options: null,
-        },
-      })
-
-      expect(console.error).toHaveBeenCalledWith(
-        '[Vue-Treeselect Warning]',
-        'Required prop `options` is not provided.'
-      )
-    })
-
-    it('should warn about non-array prop value', () => {
-      spyOn(console, 'error')
-
-      mount(Treeselect, {
-        propsData: {
-          options: {},
-        },
-      })
-
-      expect(console.error).toHaveBeenCalledWith(
-        '[Vue-Treeselect Warning]',
-        'Expected prop `options` to be an array, instead got: [object Object].'
-      )
-    })
-
-    it('can be omitted when `loadRootOptions` prop provided', () => {
-      spyOn(console, 'error')
-
-      mount(Treeselect, {
-        propsData: {
-          loadRootOptions() { /* empty */ },
-        },
-      })
-
-      expect(console.error).not.toHaveBeenCalled()
-    })
-
-    it('show tip when `options` is an empty array', () => {
-      const wrapper = mount(Treeselect, {
-        propsData: {
-          options: [],
-        },
-        data: {
-          isOpen: true,
-        },
-      })
-
-      const menu = wrapper.first('.vue-treeselect__menu')
-      const noOptionsTip = menu.first('.vue-treeselect__no-options-tip')
-      expect(noOptionsTip.text().trim()).toBe('No options available.')
-    })
-  })
-
   describe('defaultExpandLevel', () => {
     it('when defaultExpandLevel=0', () => {
       const wrapper = mount(Treeselect, {
@@ -2138,6 +2469,39 @@ describe('Props', () => {
       expect(aa.isExpanded).toBe(true)
     })
 
+    it('with `node.isDefaultExpanded`', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          options: [ {
+            id: 'a',
+            label: 'a',
+            children: [ {
+              id: 'aa',
+              label: 'aa',
+              children: [],
+            } ],
+          }, {
+            id: 'b',
+            label: 'b',
+            isDefaultExpanded: false,
+            children: [ {
+              id: 'bb',
+              label: 'bb',
+              isDefaultExpanded: true,
+              children: [],
+            } ],
+          } ],
+          defaultExpandLevel: 1,
+        },
+      })
+      const { a, aa, b, bb } = wrapper.vm.nodeMap
+
+      expect(a.isExpanded).toBe(true)
+      expect(aa.isExpanded).toBe(false)
+      expect(b.isExpanded).toBe(false)
+      expect(bb.isExpanded).toBe(true)
+    })
+
     it('should request children options loading when expanded', () => {
       // TODO: 需要考虑服务端渲染的情况
       const loadChildrenOptions = jasmine.createSpy('loadChildrenOptions')
@@ -2165,6 +2529,154 @@ describe('Props', () => {
 
       expect(loadChildrenOptions.calls.count()).toBe(1)
       expect(loadChildrenOptions).toHaveBeenCalledWith(a.raw, jasmine.any(Function))
+    })
+  })
+
+  describe('disableBranchNodes', () => {
+    let wrapper, vm
+
+    const getLabelWrapperOfBranchNode = () => {
+      vm.openMenu() // ensure the menu is opened otherwise the options won't be displayed
+      wrapper.update()
+      const branchNode = wrapper.find(TreeselectOption)[0]
+      expect(branchNode.vm.node.id).toBe('branch')
+      return branchNode.first('.vue-treeselect__label-wrapper')
+    }
+
+    const getLabelWrapperOfLeafNode = () => {
+      vm.openMenu() // ensure the menu is opened otherwise the options won't be displayed
+      wrapper.update()
+      const leafNode = wrapper.find(TreeselectOption)[1]
+      expect(leafNode.vm.node.id).toBe('leaf')
+      return leafNode.first('.vue-treeselect__label-wrapper')
+    }
+
+    const clickOnLabelOfBranchNode = () => {
+      const labelWrapperOfBranchNode = getLabelWrapperOfBranchNode()
+      customTrigger(labelWrapperOfBranchNode, 'mousedown', BUTTON_LEFT)
+    }
+
+    beforeEach(() => {
+      wrapper = mount(Treeselect, {
+        attachToDocument: true,
+        propsData: {
+          defaultExpandLevel: Infinity,
+          flat: false,
+          options: [ {
+            id: 'branch',
+            label: 'branch',
+            children: [ {
+              id: 'leaf',
+              label: 'leaf',
+            } ],
+          } ],
+        },
+      })
+      vm = wrapper.vm
+    })
+
+    describe('when disableBranchNodes=false', () => {
+      beforeEach(() => {
+        wrapper.setProps({ disableBranchNodes: false })
+      })
+
+      it('a branch node should have checkbox when multiple=true', () => {
+        wrapper.setProps({ multiple: true })
+        const labelWrapperOfBranchNode = getLabelWrapperOfBranchNode()
+
+        expect(labelWrapperOfBranchNode.contains('.vue-treeselect__checkbox')).toBe(true)
+      })
+
+      it('a leaf node should have checkbox too when multiple=true', () => {
+        wrapper.setProps({ multiple: true })
+        const labelWrapperOfLeafNode = getLabelWrapperOfLeafNode()
+
+        expect(labelWrapperOfLeafNode.contains('.vue-treeselect__checkbox')).toBe(true)
+      })
+
+      it('click on label of a branch node should toggle checking state when multiple=true', () => {
+        wrapper.setProps({ multiple: true })
+
+        expect(vm.isSelected(vm.nodeMap.branch)).toBe(false)
+        clickOnLabelOfBranchNode()
+        expect(vm.isSelected(vm.nodeMap.branch)).toBe(true)
+        clickOnLabelOfBranchNode()
+        expect(vm.isSelected(vm.nodeMap.branch)).toBe(false)
+      })
+
+      it('click on label of a branch node should not toggle expanding state when multiple=true', () => {
+        wrapper.setProps({ multiple: true })
+
+        expect(vm.nodeMap.branch.isExpanded).toBe(true)
+        clickOnLabelOfBranchNode()
+        expect(vm.nodeMap.branch.isExpanded).toBe(true)
+      })
+
+      it('click on label of a branch node should close the dropdown when multiple=false & closeOnSelect=true', () => {
+        wrapper.setProps({ multiple: false, closeOnSelect: true })
+        vm.openMenu()
+        wrapper.update()
+
+        expect(vm.isOpen).toBe(true)
+        clickOnLabelOfBranchNode()
+        expect(vm.isOpen).toBe(false)
+      })
+    })
+
+    describe('when disableBranchNodes=true', () => {
+      beforeEach(() => {
+        wrapper.setProps({ disableBranchNodes: true })
+      })
+
+      it('a branch node should not have checkbox when multiple=true', () => {
+        wrapper.setProps({ multiple: true })
+        const labelWrapperOfBranchNode = getLabelWrapperOfBranchNode()
+
+        expect(labelWrapperOfBranchNode.contains('.vue-treeselect__checkbox')).toBe(false)
+      })
+
+      it('a leaf node should have checkbox when multiple=true', () => {
+        wrapper.setProps({ multiple: true })
+        const labelWrapperOfLeafNode = getLabelWrapperOfLeafNode()
+
+        expect(labelWrapperOfLeafNode.contains('.vue-treeselect__checkbox')).toBe(true)
+      })
+
+      it('click on label of a branch node should not toggle checking state when multiple=true', () => {
+        wrapper.setProps({ multiple: true })
+
+        expect(vm.isSelected(vm.nodeMap.branch)).toBe(false)
+        clickOnLabelOfBranchNode()
+        expect(vm.isSelected(vm.nodeMap.branch)).toBe(false)
+      })
+
+      it('click on label of a branch node should toggle expanding state when multiple=true', () => {
+        wrapper.setProps({ multiple: true })
+
+        expect(vm.nodeMap.branch.isExpanded).toBe(true)
+        clickOnLabelOfBranchNode()
+        expect(vm.nodeMap.branch.isExpanded).toBe(false)
+        clickOnLabelOfBranchNode()
+        expect(vm.nodeMap.branch.isExpanded).toBe(true)
+      })
+
+      it('click on label of a branch node should not close the dropdown when multiple=false & closeOnSelect=true', () => {
+        wrapper.setProps({ multiple: false, closeOnSelect: true })
+        vm.openMenu()
+        wrapper.update()
+
+        expect(vm.isOpen).toBe(true)
+        clickOnLabelOfBranchNode()
+        expect(vm.isOpen).toBe(true)
+      })
+
+      it('should not auto-select ancestor nodes like flat-mode', () => {
+        wrapper.setProps({ multiple: true })
+
+        vm.select(vm.nodeMap.leaf)
+        expect(vm.isSelected(vm.nodeMap.leaf)).toBe(true)
+        expect(vm.isSelected(vm.nodeMap.branch)).toBe(false)
+      })
     })
   })
 
@@ -2255,62 +2767,6 @@ describe('Props', () => {
           isOpen: false,
         }))
       })
-    })
-  })
-
-  describe('tabIndex', () => {
-    it('when disabled=false & searchable=true', () => {
-      const wrapper = mount(Treeselect, {
-        propsData: {
-          options: [],
-          searchable: true,
-          disabled: false,
-        },
-      })
-
-      const $inputWrapper = wrapper.first('.vue-treeselect__input-wrapper')
-      const $input = wrapper.first('.vue-treeselect__input')
-      expect($inputWrapper.hasAttribute('tabindex')).toBe(false)
-      expect($input.hasAttribute('tabindex')).toBe(true)
-    })
-
-    it('when disabled=false & searchable=false', () => {
-      const wrapper = mount(Treeselect, {
-        propsData: {
-          options: [],
-          searchable: false,
-          disabled: false,
-        },
-      })
-
-      const $inputWrapper = wrapper.first('.vue-treeselect__input-wrapper')
-      expect($inputWrapper.hasAttribute('tabindex')).toBe(true)
-    })
-
-    it('when disabled=true', () => {
-      const wrapper = mount(Treeselect, {
-        propsData: {
-          options: [],
-          disabled: true,
-        },
-      })
-
-      const $inputWrapper = wrapper.first('.vue-treeselect__input-wrapper')
-      expect($inputWrapper.hasAttribute('tabindex')).toBe(false)
-    })
-
-    it('customized value', () => {
-      const wrapper = mount(Treeselect, {
-        propsData: {
-          options: [],
-          searchable: true,
-          disabled: false,
-          tabIndex: 1,
-        },
-      })
-
-      const $input = wrapper.first('.vue-treeselect__input')
-      expect($input.getAttribute('tabindex')).toBe('1')
     })
   })
 
@@ -2768,6 +3224,202 @@ describe('Props', () => {
     })
   })
 
+  describe('openOnClick', () => {
+    it('when openOnClick=false', () => {
+      const wrapper = mount(Treeselect, {
+        attachToDocument: true,
+        propsData: {
+          options: [],
+          openOnClick: false,
+        },
+      })
+      const valueWrapper = wrapper.first('.vue-treeselect__value-wrapper')
+
+      expect(wrapper.data()).toEqual(jasmine.objectContaining({
+        isFocused: false,
+        isOpen: false,
+      }))
+
+      customTrigger(valueWrapper, 'mousedown', BUTTON_LEFT)
+      expect(wrapper.data()).toEqual(jasmine.objectContaining({
+        isFocused: true,
+        isOpen: false,
+      }))
+
+      customTrigger(valueWrapper, 'mousedown', BUTTON_LEFT)
+      expect(wrapper.data()).toEqual(jasmine.objectContaining({
+        isFocused: true,
+        isOpen: true,
+      }))
+    })
+
+    it('when openOnClick=true', () => {
+      const wrapper = mount(Treeselect, {
+        attachToDocument: true,
+        propsData: {
+          options: [],
+          openOnClick: true,
+        },
+      })
+      const valueWrapper = wrapper.first('.vue-treeselect__value-wrapper')
+
+      expect(wrapper.data()).toEqual(jasmine.objectContaining({
+        isFocused: false,
+        isOpen: false,
+      }))
+
+      customTrigger(valueWrapper, 'mousedown', BUTTON_LEFT)
+      expect(wrapper.data()).toEqual(jasmine.objectContaining({
+        isFocused: true,
+        isOpen: true,
+      }))
+    })
+  })
+
+  describe('openOnFocus', () => {
+    it('when openOnFocus=false', () => {
+      const wrapper = mount(Treeselect, {
+        attachToDocument: true,
+        propsData: {
+          options: [],
+          openOnFocus: false,
+        },
+      })
+      const valueWrapper = wrapper.first('.vue-treeselect__value-wrapper')
+
+      expect(wrapper.data()).toEqual(jasmine.objectContaining({
+        isFocused: false,
+        isOpen: false,
+      }))
+
+      wrapper.vm.focusInput()
+      expect(wrapper.data()).toEqual(jasmine.objectContaining({
+        isFocused: true,
+        isOpen: false,
+      }))
+
+      customTrigger(valueWrapper, 'mousedown', BUTTON_LEFT)
+      expect(wrapper.data()).toEqual(jasmine.objectContaining({
+        isFocused: true,
+        isOpen: true,
+      }))
+    })
+
+    it('when openOnFocus=true', () => {
+      const wrapper = mount(Treeselect, {
+        attachToDocument: true,
+        propsData: {
+          options: [],
+          openOnFocus: true,
+        },
+      })
+
+      expect(wrapper.data()).toEqual(jasmine.objectContaining({
+        isFocused: false,
+        isOpen: false,
+      }))
+
+      wrapper.vm.focusInput()
+      expect(wrapper.data()).toEqual(jasmine.objectContaining({
+        isFocused: true,
+        isOpen: true,
+      }))
+    })
+
+    describe('combined with autofocus', () => {
+      it('when openOnFocus=false', () => {
+        const wrapper = mount(Treeselect, {
+          attachToDocument: true,
+          propsData: {
+            options: [],
+            autofocus: true,
+            openOnFocus: false,
+          },
+        })
+
+        expect(wrapper.data()).toEqual(jasmine.objectContaining({
+          isFocused: true,
+          isOpen: false,
+        }))
+      })
+
+      it('when openOnFocus=true', () => {
+        const wrapper = mount(Treeselect, {
+          attachToDocument: true,
+          propsData: {
+            options: [],
+            autofocus: true,
+            openOnFocus: true,
+          },
+        })
+
+        expect(wrapper.data()).toEqual(jasmine.objectContaining({
+          isFocused: true,
+          isOpen: true,
+        }))
+      })
+    })
+  })
+
+  describe('options', () => {
+    it('should warn about being absent', () => {
+      spyOn(console, 'error')
+
+      mount(Treeselect, {
+        propsData: {
+          options: null,
+        },
+      })
+
+      expect(console.error).toHaveBeenCalledWith(
+        '[Vue-Treeselect Warning]',
+        'Required prop `options` is not provided.'
+      )
+    })
+
+    it('should warn about non-array prop value', () => {
+      spyOn(console, 'error')
+
+      mount(Treeselect, {
+        propsData: {
+          options: {},
+        },
+      })
+
+      expect(console.error).toHaveBeenCalledWith(
+        '[Vue-Treeselect Warning]',
+        'Expected prop `options` to be an array, instead got: [object Object].'
+      )
+    })
+
+    it('can be omitted when `loadRootOptions` prop provided', () => {
+      spyOn(console, 'error')
+
+      mount(Treeselect, {
+        propsData: {
+          loadRootOptions() { /* empty */ },
+        },
+      })
+
+      expect(console.error).not.toHaveBeenCalled()
+    })
+
+    it('show tip when `options` is an empty array', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          options: [],
+        },
+        data: {
+          isOpen: true,
+        },
+      })
+
+      const menu = wrapper.first('.vue-treeselect__menu')
+      const noOptionsTip = menu.first('.vue-treeselect__no-options-tip')
+      expect(noOptionsTip.text().trim()).toBe('No options available.')
+    })
+  })
+
   describe('searchable', () => {
     describe('when searchable=true', () => {
       describe('when multiple=true', () => {
@@ -3026,6 +3678,62 @@ describe('Props', () => {
       expect(wrapper.vm.internalValue).toEqual([ 'aaa', 'bb', 'c' ])
       wrapper.setProps({ sortValueBy: 'LEVEL' })
       expect(wrapper.vm.internalValue).toEqual([ 'c', 'bb', 'aaa' ])
+    })
+  })
+
+  describe('tabIndex', () => {
+    it('when disabled=false & searchable=true', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          options: [],
+          searchable: true,
+          disabled: false,
+        },
+      })
+
+      const $inputWrapper = wrapper.first('.vue-treeselect__input-wrapper')
+      const $input = wrapper.first('.vue-treeselect__input')
+      expect($inputWrapper.hasAttribute('tabindex')).toBe(false)
+      expect($input.hasAttribute('tabindex')).toBe(true)
+    })
+
+    it('when disabled=false & searchable=false', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          options: [],
+          searchable: false,
+          disabled: false,
+        },
+      })
+
+      const $inputWrapper = wrapper.first('.vue-treeselect__input-wrapper')
+      expect($inputWrapper.hasAttribute('tabindex')).toBe(true)
+    })
+
+    it('when disabled=true', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          options: [],
+          disabled: true,
+        },
+      })
+
+      const $inputWrapper = wrapper.first('.vue-treeselect__input-wrapper')
+      expect($inputWrapper.hasAttribute('tabindex')).toBe(false)
+    })
+
+    it('customized value', () => {
+      const wrapper = mount(Treeselect, {
+        propsData: {
+          options: [],
+          searchable: true,
+          disabled: false,
+          tabIndex: 1,
+        },
+      })
+
+      const $input = wrapper.first('.vue-treeselect__input')
+      expect($input.getAttribute('tabindex')).toBe('1')
     })
   })
 })

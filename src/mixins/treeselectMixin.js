@@ -4,14 +4,14 @@ import {
   warning,
   quickCompare, onlyOnLeftClick,
   hasOwn, last, findIndex, removeFromArray,
- } from '../utils'
- import {
-   UNCHECKED, INDETERMINATE, CHECKED,
-   UNMATCHED, DESCENDANT_MATCHED, MATCHED,
-   NO_PARENT_NODE,
-   ALL_CHILDREN, ALL_DESCENDANTS, LEAF_CHILDREN, LEAF_DESCENDANTS,
-   ORDER_SELECTED, LEVEL, INDEX,
- } from '../constants'
+} from '../utils'
+import {
+  UNCHECKED, INDETERMINATE, CHECKED,
+  UNMATCHED, DESCENDANT_MATCHED, MATCHED,
+  NO_PARENT_NODE,
+  ALL_CHILDREN, ALL_DESCENDANTS, LEAF_CHILDREN, LEAF_DESCENDANTS,
+  ORDER_SELECTED, LEVEL, INDEX,
+} from '../constants'
 
 function sortValueByIndex(a, b) {
   let i = 0
@@ -61,6 +61,26 @@ export default {
      * @type {boolean}
      */
     autofocus: {
+      type: Boolean,
+      default: false,
+    },
+
+    /**
+     * Automatically load root options on mount?
+     * @default true
+     * @type {boolean}
+     */
+    autoLoadRootOptions: {
+      type: Boolean,
+      default: true,
+    },
+
+    /**
+     * Whether the menu should be always open
+     * @default false
+     * @type {boolean}
+     */
+    alwaysOpen: {
       type: Boolean,
       default: false,
     },
@@ -223,11 +243,11 @@ export default {
       default: Infinity,
     },
 
-  /**
-   * Function that processes the message shown when selected elements pass the defined limit
-   * @default count => `and ${count} more`
-   * @type {function(number): string}
-   */
+    /**
+     * Function that processes the message shown when selected elements pass the defined limit
+     * @default count => `and ${count} more`
+     * @type {function(number): string}
+     */
     limitText: {
       type: Function,
       default: limitTextDefault,
@@ -512,11 +532,19 @@ export default {
     },
 
     /**
-     * Has any options has been selected?
+     * Has any option been selected?
      * @type {boolean}
      */
     hasValue() {
       return this.selectedNodesNumber > 0
+    },
+
+    /**
+     * Has any undisabled option been selected?
+     * @type {boolean}
+     */
+    hasUndisabledValue() {
+      return this.hasValue && this.selectedNodes.some(node => !node.isDisabled)
     },
 
     /**
@@ -557,7 +585,7 @@ export default {
      * @type {boolean}
      */
     shouldShowClearIcon() {
-      return this.clearable && !this.disabled && this.hasValue
+      return this.clearable && !this.disabled && this.hasUndisabledValue
     },
 
     /**
@@ -566,7 +594,7 @@ export default {
      */
     showCountOnSearchComputed() {
       // Vue not allows set default prop value based on another prop value
-      // so use computed property to workaround
+      // so use computed property as a workaround
       return typeof this.showCountOnSearch === 'boolean'
         ? this.showCountOnSearch
         : this.showCount
@@ -575,9 +603,15 @@ export default {
   },
 
   watch: {
+    alwaysOpen(newValue) {
+      if (newValue) this.openMenu()
+      else this.closeMenu()
+    },
+
     disabled(newValue) {
       // force close the menu after disabling the control
       if (newValue && this.isOpen) this.closeMenu()
+      if (!newValue && !this.isOpen && this.alwaysOpen) this.openMenu()
     },
 
     multiple(newValue) {
@@ -672,7 +706,12 @@ export default {
     },
 
     isSelected(node) {
+      // whether a node is selected (single-select mode) or fully-checked (multi-select mode)
       return node.id in this.selectedNodeMap
+    },
+
+    withoutDisabled(nodes) {
+      return nodes.filter(node => !node.isDisabled)
     },
 
     checkIfBranchNode(node) {
@@ -691,7 +730,7 @@ export default {
 
       if (parentNode.isBranch && parentNode.level < maxLevel) {
         parentNode.children.forEach(child => {
-          // post-order traversal
+          // DFS + post-order traversal
           this.traverseDescendants(child, maxLevel, callback)
           callback(child)
         })
@@ -831,7 +870,7 @@ export default {
     },
 
     closeMenu() {
-      if (!this.isOpen) return
+      if (!this.isOpen || (!this.disabled && this.alwaysOpen)) return
       this.isOpen = false
       /* istanbul ignore else */
       if (this.retainScrollPosition && this.$refs.menu) {
@@ -927,14 +966,14 @@ export default {
       })
     },
 
-    normalize(parentNode, options) {
-      let normalizedOptions = options.map((node, index) => {
+    normalize(parentNode, nodes) {
+      let normalizedOptions = nodes.map((node, index) => {
         this.checkDuplication(node)
         this.verifyNodeShape(node)
 
         const isRootNode = parentNode === NO_PARENT_NODE
-        const { id, label, children } = node
-        const { isDisabled = false } = node
+        const { id, label, children, isDefaultExpanded } = node
+        const isDisabled = !!node.isDisabled || (!this.flat && !isRootNode && parentNode.isDisabled)
         const isBranch = (
           Array.isArray(children) ||
           children === null ||
@@ -952,7 +991,7 @@ export default {
           ancestors,
           index: _index,
           parentNode,
-          isDisabled, // TODO
+          isDisabled,
           isMatched,
           isLeaf,
           isBranch,
@@ -971,8 +1010,11 @@ export default {
 
           normalized.isLoaded = isLoaded
           normalized.isPending = false
-          normalized.isExpanded = level < this.defaultExpandLevel
+          normalized.isExpanded = typeof isDefaultExpanded === 'boolean'
+            ? isDefaultExpanded
+            : level < this.defaultExpandLevel
           normalized.hasMatchedChild = false
+          normalized.hasDisabledDescendants = false
           normalized.expandsOnSearch = false
           normalized.loadingChildrenError = ''
           normalized.count = {
@@ -995,6 +1037,10 @@ export default {
         if (parentNode !== NO_PARENT_NODE) {
           parentNode.count.ALL_CHILDREN += 1
           if (isLeaf) parentNode.count.LEAF_CHILDREN += 1
+        }
+
+        if (isDisabled) {
+          normalized.ancestors.forEach(ancestor => ancestor.hasDisabledDescendants = true)
         }
 
         return normalized
@@ -1072,6 +1118,8 @@ export default {
     },
 
     select(node) {
+      if (node.isDisabled) return
+
       if (this.single) {
         this.clear()
       }
@@ -1104,31 +1152,56 @@ export default {
 
     clear() {
       if (this.hasValue) {
-        this.internalValue = []
+        this.internalValue = this.multiple
+          ? this.internalValue.filter(nodeId => this.getNode(nodeId).isDisabled)
+          : []
         this.buildSelectedNodeMap()
         this.buildNodeCheckedStateMap()
       }
     },
 
     _selectNode(node) {
+      if (this.flat || this.disableBranchNodes) {
+        this.addValue(node)
+        return
+      }
+
+      if (this.multiple && node.isBranch && node.hasDisabledDescendants) {
+        this.withoutDisabled(node.children).forEach(this._selectNode)
+        return
+      }
+
       this.addValue(node)
 
       if (this.multiple && !this.flat && !node.isRootNode) {
-        const { parentNode } = node
-        const siblings = parentNode.children
-
-        if (siblings.every(this.isSelected)) {
-          siblings.forEach(this.removeValue)
-          this._selectNode(parentNode)
-        }
+        let curr = node
+        do {
+          curr = curr.parentNode
+          const siblings = curr.children
+          if (siblings.every(this.isSelected)) {
+            siblings.forEach(this.removeValue)
+            this.addValue(curr)
+          }
+        } while (!curr.isRootNode)
       }
     },
 
     _deselectNode(node) {
+      if (node.isBranch && node.hasDisabledDescendants) {
+        if (this.isSelected(node)) {
+          const disabledChildren = node.children.filter(child => child.isDisabled)
+          if (node.children.length !== disabledChildren.length) {
+            this.removeValue(node)
+            disabledChildren.forEach(this.addValue)
+          }
+          return
+        }
+      }
+
       this.removeValue(node)
 
       if (this.multiple && !this.flat) {
-        this.selectedNodes.forEach(selectedNode => {
+        this.withoutDisabled(this.selectedNodes).forEach(selectedNode => {
           if (selectedNode.ancestors.indexOf(node) !== -1) {
             this.removeValue(selectedNode)
           }
@@ -1216,6 +1289,8 @@ export default {
 
   mounted() {
     if (this.autofocus) this.$refs.value.focusInput()
+    if (!this.rootOptionsLoaded && this.autoLoadRootOptions) this.loadOptions(true)
+    if (this.alwaysOpen) this.openMenu()
   },
 
   destroyed() {
